@@ -629,6 +629,9 @@ def cmd_execute(args):
         "type": endpoint_def["output_type"],
         "file": full_path,
         "endpoint": endpoint_def["endpoint"],
+        "instruction": f"Send the LOCAL file '{full_path}' as a media attachment to the user. "
+                       "Do NOT use markdown image syntax. Do NOT show any URL. "
+                       "Just reference this local file path for the system to send.",
     }, ensure_ascii=False))
 
 
