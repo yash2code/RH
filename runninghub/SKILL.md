@@ -24,8 +24,8 @@ Data: `{baseDir}/data/capabilities.json`
 
 1. **ALWAYS use the script** — never call RunningHub API directly via curl.
 2. **ALWAYS use `-o /tmp/rh-output/filename.ext`** — the script downloads the result file locally.
-3. **ALWAYS use `MEDIA:` output** — when the script prints `MEDIA:/path/to/file`, that local file IS the result. Send it as a file attachment to the user. Do NOT wrap it in markdown image syntax.
-4. **NEVER show RunningHub URLs to the user** — URLs like `https://www.runninghub.cn/api/image/...` or `https://www.runninghub.cn/task/...` require authentication and CANNOT be opened by the user. They will see a broken link.
+3. **Parse the JSON output** — the script prints one JSON line to stdout. Read the `file` field to get the local path. Send that file as an attachment to the user.
+4. **NEVER show RunningHub URLs to the user** — URLs like `https://www.runninghub.cn/api/image/...` or `https://www.runninghub.cn/task/...` require authentication and CANNOT be opened by the user. They will see a broken link. Do NOT wrap them in markdown image syntax like `![](url)`.
 5. **ALWAYS pass `--api-key` explicitly** when the user has just provided their key and it is not yet saved to config.
 
 ## API key setup flow
@@ -48,7 +48,7 @@ python3 {baseDir}/scripts/runninghub.py --check
   1. Register/login at https://www.runninghub.cn
   2. Create API key at https://www.runninghub.cn/enterprise-api/sharedApi (click "新建")
   3. Recharge wallet at https://www.runninghub.cn/vip-rights/4
-  4. Send the key here, or run: `openclaw skills config runninghub RUNNINGHUB_API_KEY <key>`
+  4. Send the key here in chat — I'll verify and save it automatically
 
 - `"no_balance"` — Tell the user their wallet is empty:
   > Your API key works, but wallet balance is ¥0. Please recharge at:
@@ -64,9 +64,22 @@ python3 {baseDir}/scripts/runninghub.py --check
    python3 {baseDir}/scripts/runninghub.py --check --api-key THE_KEY
    ```
 2. Show account info based on the result (balance, running tasks).
-3. If status is `"ready"` and balance > 0, tell the user they're all set and ask what they'd like to create.
-4. If balance is 0 or key is invalid, guide accordingly.
-5. Save the key for future use: `openclaw skills config runninghub RUNNINGHUB_API_KEY THE_KEY`
+3. If status is `"ready"` and balance > 0, save the key to OpenClaw config for future use.
+   Read `~/.openclaw/openclaw.json`, merge in the key under `skills.entries.runninghub.apiKey`, and write back:
+   ```json5
+   {
+     "skills": {
+       "entries": {
+         "runninghub": {
+           "apiKey": "THE_KEY"
+         }
+       }
+     }
+   }
+   ```
+   OpenClaw will auto-inject it as `RUNNINGHUB_API_KEY` env var on every future agent run (via `primaryEnv`).
+4. Tell the user they're all set and ask what they'd like to create.
+5. If balance is 0 or key is invalid, guide accordingly (do NOT save invalid keys).
 
 Do NOT attempt any generation until `--check` returns `"ready"` with balance > 0.
 
@@ -76,7 +89,7 @@ Do NOT attempt any generation until `--check` returns `"ready"` with balance > 0
 - ALWAYS include `-o /tmp/rh-output/<descriptive-name>.<ext>` to save the result locally.
 - Do not pass placeholder values like `your_api_key_here`.
 - If the script returns an error JSON, react based on the `error` field (see Error Handling below).
-- After the script completes, look for the `MEDIA:` line in stdout — that is the local file path to send to the user.
+- After the script completes, parse the JSON output from stdout. The `file` field contains the local path to send to the user.
 
 ## Quick Routing Table
 
@@ -279,24 +292,32 @@ The script outputs structured JSON errors. React based on the `error` field:
 
 ## Output handling
 
-The script prints structured output to stdout. Parse it as follows:
+The script prints a single JSON line to stdout. Parse it and act accordingly:
 
-### Media results (image/video/audio/3D)
-When you see `MEDIA:/tmp/rh-output/xxx.png` in the script output:
-1. That local file is the generated result — send it as a file attachment to the user.
-2. Do NOT create markdown image links like `![](url)` — the user cannot open RunningHub internal URLs.
-3. If the output is an image, just send the file. The user will see it directly in chat.
+### Success — media file (image/video/audio/3D)
+```json
+{"status": "success", "type": "image", "file": "/tmp/rh-output/puppy.png", "endpoint": "..."}
+```
+The `file` field is the **local path** to the downloaded result. Send this file as an attachment to the user.
+- Do NOT create markdown image links like `![](url)`.
+- Do NOT show any RunningHub URLs — they require auth and won't open for the user.
 
-### Text results (understanding endpoints)
-When you see `TEXT_RESULT:content`, relay the text content to the user.
+### Success — text result
+```json
+{"status": "success", "type": "text", "content": "A photo of a golden retriever..."}
+```
+Relay the `content` to the user as text.
 
-### Error results
-When the script outputs JSON with an `"error"` field, see the Error Handling table above.
+### Error
+```json
+{"error": "TASK_FAILED", "message": "..."}
+```
+See the Error Handling table above for how to react to each error code.
 
 ## Notes
 
 - Video generation is slower (1-5 min); the script polls automatically up to 15 min.
-- Key resolution: `--api-key` flag → `RUNNINGHUB_API_KEY` env → `~/.openclaw/openclaw.json` config.
+- Key resolution order: `--api-key` flag → `RUNNINGHUB_API_KEY` env var (auto-injected by OpenClaw from `skills.entries.runninghub.apiKey` via `primaryEnv`) → direct config file read.
 - Images < 5MB are sent as base64 data URIs; larger files are uploaded first.
 - The `--task` flag auto-selects the most popular endpoint for that task type.
-- ALWAYS use `-o` to specify output path. Without it, the script saves to `/tmp/runninghub-output/result.<ext>`.
+- ALWAYS use `-o` to specify output path. Without it, the script saves to `/tmp/rh-output/result.<ext>`.

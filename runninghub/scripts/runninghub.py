@@ -84,15 +84,15 @@ def read_key_from_openclaw_config() -> str | None:
         cfg = json.loads(cfg_path.read_text(encoding="utf-8"))
     except Exception:
         return None
-    value = (
-        cfg.get("skills", {})
-        .get("entries", {})
-        .get("runninghub", {})
-        .get("env", {})
-        .get("RUNNINGHUB_API_KEY")
-    )
-    if isinstance(value, str) and value.strip():
-        return value.strip()
+    entry = cfg.get("skills", {}).get("entries", {}).get("runninghub", {})
+    # OpenClaw native: skills.entries.runninghub.apiKey (injected via primaryEnv)
+    api_key = entry.get("apiKey")
+    if isinstance(api_key, str) and api_key.strip():
+        return api_key.strip()
+    # Fallback: skills.entries.runninghub.env.RUNNINGHUB_API_KEY
+    env_val = entry.get("env", {}).get("RUNNINGHUB_API_KEY")
+    if isinstance(env_val, str) and env_val.strip():
+        return env_val.strip()
     return None
 
 
@@ -140,7 +140,7 @@ def require_api_key(provided_key: str | None) -> str:
             "1. Register/login at https://www.runninghub.cn",
             "2. Create API Key at https://www.runninghub.cn/enterprise-api/sharedApi",
             "3. Recharge wallet at https://www.runninghub.cn/vip-rights/4",
-            "4. Configure: openclaw skills config runninghub RUNNINGHUB_API_KEY <your-key>",
+            "4. Send the key in chat or add to ~/.openclaw/openclaw.json: skills.entries.runninghub.apiKey",
         ],
     }
     print(json.dumps(result, ensure_ascii=False))
@@ -230,7 +230,7 @@ def cmd_check(api_key_arg: str | None):
                 "1. Register/login at https://www.runninghub.cn",
                 "2. Create API Key at https://www.runninghub.cn/enterprise-api/sharedApi",
                 "3. Recharge wallet at https://www.runninghub.cn/vip-rights/4",
-                "4. Configure: openclaw skills config runninghub RUNNINGHUB_API_KEY <your-key>",
+                "4. Send the key in chat or add to ~/.openclaw/openclaw.json: skills.entries.runninghub.apiKey",
             ],
         }, ensure_ascii=False))
         return
@@ -605,22 +605,31 @@ def cmd_execute(args):
     if not result_url:
         text_result = result_item.get("text") or result_item.get("content") or result_item.get("output")
         if text_result:
-            print(f"TEXT_RESULT:{text_result}")
+            print(json.dumps({
+                "status": "success",
+                "type": "text",
+                "content": text_result,
+            }, ensure_ascii=False))
             return
-        print("Error: no URL or text in results", file=sys.stderr)
+        print(json.dumps({"error": "TASK_FAILED", "message": "No URL or text in results"}))
         sys.exit(1)
 
     output_path = args.output
     if not output_path:
         ext = output_type_ext or _guess_ext(endpoint_def["output_type"])
-        output_path = f"/tmp/runninghub-output/result.{ext}"
+        output_path = f"/tmp/rh-output/result.{ext}"
 
     if output_type_ext:
         output_path = str(Path(output_path).with_suffix(f".{output_type_ext}"))
 
     print(f"Downloading result to local file...", file=sys.stderr)
     full_path = download_file(result_url, output_path)
-    print(f"MEDIA:{full_path}")
+    print(json.dumps({
+        "status": "success",
+        "type": endpoint_def["output_type"],
+        "file": full_path,
+        "endpoint": endpoint_def["endpoint"],
+    }, ensure_ascii=False))
 
 
 def _guess_ext(output_type: str) -> str:
