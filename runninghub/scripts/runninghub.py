@@ -605,7 +605,7 @@ def cmd_execute(args):
 
     # Extract cost from usage data
     usage = final.get("usage") or {}
-    consume_money = usage.get("consumeMoney")
+    consume_money = usage.get("consumeMoney") or usage.get("thirdPartyConsumeMoney")
     task_cost_time = usage.get("taskCostTime")
 
     # Text results (for string output_type endpoints)
