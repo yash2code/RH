@@ -13,6 +13,8 @@ Modes:
   --task TASK --prompt "..."       Auto-select best endpoint for task
 """
 
+from __future__ import annotations
+
 import argparse
 import base64
 import json
