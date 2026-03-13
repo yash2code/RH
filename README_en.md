@@ -55,16 +55,16 @@ The assistant automatically selects the best RunningHub endpoint based on your r
 
 When generating video, the assistant presents 8 curated models to choose from:
 
-> 1. 🚀 **RHArt V3.1 Fast** — Fast with great quality, best value
-> 2. 🔥 **RHArt G** — Grok-powered, incredible imagination
+> 1. 🚀 **Google Veo 3.1 Fast** — Fast with great quality, best value
+> 2. 🔥 **Grok Video** — Grok-powered, incredible imagination
 > 3. 🎯 **Kling v3.0 Pro** — Natural motion, best for people
-> 4. 🎬 **RHArt V3.1 Pro** — Cinematic quality
+> 4. 🎬 **Google Veo 3.1 Pro** — Cinematic quality
 > 5. ✨ **Vidu Q3 Pro** — Unique stylized look
-> 6. ⭐ **RHArt Sora** — Sora-class engine
-> 7. 🌊 **Hailuo** — Fast with fine details
+> 6. ⭐ **Sora** — Sora-class engine
+> 7. 🌊 **MiniMax Hailuo** — Fast with fine details
 > 8. 🌱 **Seedance v1.5 Pro** — Smooth motion, great for dance
 
-Pick a number to start, or the default (RHArt V3.1 Fast) is used automatically.
+Pick a number to start, or the default (Google Veo 3.1 Fast) is used automatically.
 
 ## Architecture
 
