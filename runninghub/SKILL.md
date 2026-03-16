@@ -71,10 +71,12 @@ Quick check: `python3 {baseDir}/scripts/runninghub.py --check`
 | Image understand | `rhart-text-g-3-flash-preview/image-to-text` | Preferred. Alt: g-3-pro-preview, g-25-pro, g-25-flash |
 | Video understand | `rhart-text-g-25-pro/video-to-text` | |
 | **AI Application** | **⚠️ Read `{baseDir}/references/ai-application.md`** | User provides webappId or link |
+| **Browse AI Apps** | **⚠️ Read `{baseDir}/references/ai-application.md`** | "有什么应用" / "最热门" / "最新" / "推荐" |
 
 ## AI Application
 
-When user mentions "AI应用", "workflow", "webappId", or pastes a RunningHub AI app link →
+When user mentions "AI应用", "workflow", "webappId", pastes a RunningHub AI app link,
+or asks to browse/discover apps ("有什么应用", "最热门的", "最新的", "推荐什么") →
 Read `{baseDir}/references/ai-application.md` and follow its complete flow.
 
 ## Script Usage

@@ -7,6 +7,7 @@ Uses only Python stdlib and curl.
 
 Modes:
   --check                          Account health check (key + balance)
+  --list [--sort S] [--size N]     Browse AI applications
   --info WEBAPP_ID                 Show app's modifiable nodes
   --run WEBAPP_ID [options]        Execute an AI application task
 """
@@ -16,12 +17,14 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import subprocess
 import sys
 import tempfile
 from pathlib import Path
 
 API_HOST = "https://www.runninghub.cn"
+APP_LIST_PATH = "/openapi/v2/aiapp/list"
 NODE_INFO_PATH = "/api/webapp/apiCallDemo"
 UPLOAD_PATH = "/task/openapi/upload"
 SUBMIT_PATH = "/task/openapi/ai-app/run"
@@ -96,6 +99,46 @@ def _parse_response(result: subprocess.CompletedProcess, context: str) -> dict:
 # ---------------------------------------------------------------------------
 # AI Application API functions
 # ---------------------------------------------------------------------------
+
+def _extract_webapp_id(invoke_example: str) -> str | None:
+    """Extract webappId from the invokeExample cURL string."""
+    m = re.search(r'/run/ai-app/(\d+)', invoke_example)
+    return m.group(1) if m else None
+
+
+def list_apps(api_key: str, sort: str = "RECOMMEND", size: int = 10,
+              page: int = 1, days: int = 7) -> dict:
+    url = f"{API_HOST}{APP_LIST_PATH}"
+    payload: dict = {"current": page, "size": min(size, 50), "sort": sort}
+    if sort == "HOTTEST" and days:
+        payload["days"] = days
+
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+        json.dump(payload, f)
+        tmp_path = f.name
+    try:
+        cmd = [
+            "curl", "-s", "-S", "--fail-with-body", "-X", "POST", url,
+            "--max-time", "60",
+            "-H", "Content-Type: application/json",
+            "-H", f"Authorization: {api_key}",
+            "-d", f"@{tmp_path}",
+        ]
+        result = subprocess.run(cmd, capture_output=True, text=True)
+    finally:
+        os.unlink(tmp_path)
+
+    resp = _parse_response(result, "List AI apps")
+
+    if resp.get("code") != 0:
+        print(json.dumps({
+            "error": "LIST_FAILED",
+            "message": resp.get("msg", "Failed to list AI apps"),
+        }, ensure_ascii=False), file=sys.stderr)
+        sys.exit(1)
+
+    return resp.get("data", {})
+
 
 def get_node_info(api_key: str, webapp_id: str) -> list[dict]:
     url = f"{API_HOST}{NODE_INFO_PATH}?apiKey={api_key}&webappId={webapp_id}"
@@ -269,6 +312,59 @@ def apply_modifications(api_key: str, node_list: list[dict],
 # Commands
 # ---------------------------------------------------------------------------
 
+def _download_cover(url: str, out_path: str) -> bool:
+    """Download a cover image. Returns True on success."""
+    if not url:
+        return False
+    Path(out_path).parent.mkdir(parents=True, exist_ok=True)
+    cmd = ["curl", "-s", "-S", "-L", "-o", out_path, "--max-time", "15", url]
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    return result.returncode == 0 and Path(out_path).exists() and Path(out_path).stat().st_size > 0
+
+
+def cmd_list(api_key: str, sort: str, size: int, page: int, days: int):
+    data = list_apps(api_key, sort, size, page, days)
+    records = data.get("records", [])
+
+    cover_dir = Path("/tmp/openclaw/rh-output/app_covers")
+    cover_dir.mkdir(parents=True, exist_ok=True)
+
+    apps = []
+    for i, r in enumerate(records):
+        webapp_id = _extract_webapp_id(r.get("invokeExample", ""))
+        cover_url = r.get("cover", "")
+
+        app: dict = {
+            "title": r.get("title", ""),
+            "description": r.get("description", ""),
+        }
+        if webapp_id:
+            app["webappId"] = webapp_id
+
+        if cover_url:
+            ext = cover_url.split("?")[0].rsplit(".", 1)[-1].lower() if "." in cover_url.split("/")[-1] else "jpg"
+            if ext not in ("jpg", "jpeg", "png", "webp", "gif"):
+                ext = "jpg"
+            cover_path = str(cover_dir / f"cover_{sort.lower()}_p{page}_{i+1}.{ext}")
+            if _download_cover(cover_url, cover_path):
+                app["coverFile"] = str(Path(cover_path).resolve())
+            else:
+                print(f"Warning: failed to download cover for '{app['title']}'", file=sys.stderr)
+
+        apps.append(app)
+
+    output = {
+        "sort": sort,
+        "page": int(data.get("current", page)),
+        "size": int(data.get("size", size)),
+        "total": int(data.get("total", 0)),
+        "pages": int(data.get("pages", 0)),
+        "hasNext": data.get("hasNext", False),
+        "apps": apps,
+    }
+    print(json.dumps(output, indent=2, ensure_ascii=False))
+
+
 def cmd_info(api_key: str, webapp_id: str):
     node_list = get_node_info(api_key, webapp_id)
     print(json.dumps({
@@ -372,11 +468,14 @@ def main():
         epilog="""\
 Modes:
   --check                           Check API key and account balance
+  --list [--sort S] [--size N]      Browse AI applications
   --info WEBAPP_ID                  Show app's modifiable nodes
   --run WEBAPP_ID [options]         Execute an AI application task
 
 Examples:
   python3 runninghub_app.py --check
+  python3 runninghub_app.py --list --sort HOTTEST --size 5
+  python3 runninghub_app.py --list --sort NEWEST
   python3 runninghub_app.py --info 1877265245566922800
   python3 runninghub_app.py --run 1877265245566922800 \\
     --node "52:prompt=a girl dancing" \\
@@ -386,6 +485,15 @@ Examples:
     )
 
     parser.add_argument("--check", action="store_true", help="Check API key and account status")
+    parser.add_argument("--list", action="store_true", help="Browse AI applications")
+    parser.add_argument("--sort", choices=["RECOMMEND", "HOTTEST", "NEWEST"], default="RECOMMEND",
+                        help="Sort order for --list (default: RECOMMEND)")
+    parser.add_argument("--size", type=int, default=10,
+                        help="Number of results per page for --list (default: 10, max: 50)")
+    parser.add_argument("--page", type=int, default=1,
+                        help="Page number for --list (default: 1)")
+    parser.add_argument("--days", type=int, default=7,
+                        help="Hotness window in days for --list --sort HOTTEST (default: 7)")
     parser.add_argument("--info", metavar="WEBAPP_ID", help="Show modifiable nodes for an AI app")
     parser.add_argument("--run", metavar="WEBAPP_ID", help="Run an AI application")
     parser.add_argument("--node", action="append",
@@ -401,6 +509,9 @@ Examples:
 
     if args.check:
         cmd_check(args.api_key)
+    elif args.list:
+        api_key = require_api_key(args.api_key)
+        cmd_list(api_key, args.sort, args.size, args.page, args.days)
     elif args.info:
         api_key = require_api_key(args.api_key)
         cmd_info(api_key, args.info)

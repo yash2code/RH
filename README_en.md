@@ -48,8 +48,10 @@ Once installed, just talk to your OpenClaw assistant in natural language:
 - *"Upscale this image to 4K"*
 - *"Convert this image to a 3D model"*
 - *"Run this AI app: https://www.runninghub.cn/ai-detail/1877265245566922800"*
+- *"What are the hottest AI apps?"*
+- *"Show me the newest AI apps"*
 
-The assistant automatically selects the best RunningHub endpoint based on your request. For AI Apps, it fetches the app's node info, guides you through parameter setup, and runs the workflow.
+The assistant automatically selects the best RunningHub endpoint based on your request. For AI Apps, it fetches the app's node info, guides you through parameter setup, and runs the workflow. You can also browse recommended, hottest, and newest AI apps.
 
 ### Video Model Selection
 
@@ -108,6 +110,7 @@ runninghub/
 | Mode | Command | Purpose |
 |------|---------|---------|
 | **Check** | `--check` | Verify API key + check wallet balance |
+| **Browse** | `--list [--sort S] [--size N] [--page N]` | Browse recommended/hottest/newest AI apps |
 | **Nodes** | `--info WEBAPP_ID` | Show modifiable nodes for an AI app |
 | **Execute** | `--run WEBAPP_ID --node ... --file ... -o /tmp/out` | Run an AI application |
 

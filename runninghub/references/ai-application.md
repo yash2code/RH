@@ -8,14 +8,58 @@ Trigger AI Application flow when the user:
 - Mentions "AI应用", "AI app", "工作流", "workflow", "webappId"
 - Pastes a RunningHub AI app link like `runninghub.cn/ai-detail/1877265245566922800`
 - Says "帮我跑这个应用", "运行这个工作流", "用这个 AI 应用处理"
+- Asks about available apps: "有什么AI应用", "最热门的应用", "最新的应用", "推荐什么应用"
+
+## Browse AI Apps
+
+When the user wants to discover or explore AI apps, use `--list`:
+
+```bash
+# Recommended apps (default)
+python3 {baseDir}/scripts/runninghub_app.py --list --sort RECOMMEND --size 10
+
+# Hottest apps in the last 7 days
+python3 {baseDir}/scripts/runninghub_app.py --list --sort HOTTEST --size 10 --days 7
+
+# Newest apps
+python3 {baseDir}/scripts/runninghub_app.py --list --sort NEWEST --size 10
+
+# Page 2
+python3 {baseDir}/scripts/runninghub_app.py --list --sort RECOMMEND --size 10 --page 2
+```
+
+The output is JSON with an `apps` array. Each app has: `title`, `description`, `webappId`, and `coverFile` (local path to downloaded cover image).
+
+**Present apps to the user with cover images**. For EACH app, use the `message` tool to send its cover image, then describe it:
+
+```
+For each app in the list:
+  1. Call message tool: { "action": "send", "text": "1. 全能图片2.0 — 多功能图片生成", "media": "/tmp/openclaw/rh-output/app_covers/cover_xxx.png" }
+  2. Move to next app
+After all apps, send a final message:
+  { "action": "send", "text": "想试试哪个？告诉我编号就行！也可以说'下一页'看更多～" }
+```
+
+Alternatively, if sending many images is too slow, you can send just the **first 3 covers** via `message` tool and list the rest as text.
+
+Rules:
+- ALWAYS send cover images via `message` tool — NEVER show cover URLs or file paths as text
+- Show title as bold, description if available
+- NEVER show raw webappId to the user
+- If `coverFile` is missing for an app (download failed), just show the title as text
+- If the user picks one, proceed to Step 1 (get webappId) using the selected app's webappId
+- For "翻页" / "下一页" / "更多", call `--list` with `--page 2`, etc.
+- Map user intents: "推荐" → RECOMMEND, "最热/热门" → HOTTEST, "最新/新的" → NEWEST
 
 ## Step 1 — Get webappId
 
 If the user provides a link, extract the number from the URL:
 - `https://www.runninghub.cn/ai-detail/1877265245566922800` → webappId = `1877265245566922800`
 
-If no webappId, ask warmly:
-> "好的！要用 AI 应用的话，发给我应用链接或者 webappId 就行～ 在应用页面的地址栏可以找到哦！"
+If the user selected an app from the list, use its `webappId` directly.
+
+If no webappId and no list selection, ask warmly:
+> "好的！要用 AI 应用的话，发给我应用链接或者 webappId 就行～ 在应用页面的地址栏可以找到哦！或者我帮你看看有什么推荐的应用？"
 
 ## Step 2 — Fetch node info
 
@@ -108,6 +152,7 @@ python3 {baseDir}/scripts/runninghub_app.py --run 1877265245566922800 \
 ```
 
 Flags: `--node nodeId:fieldName=value`, `--file nodeId:fieldName=/path`, `--instance-type default|plus`, `-o path`
+Browse: `--list [--sort RECOMMEND|HOTTEST|NEWEST] [--size N] [--page N] [--days N]`
 Discovery: `--info WEBAPP_ID`
 
 ## AI App Errors
